@@ -1,0 +1,7 @@
+# Written by `fmanifest init --account`, and deliberately not committed:
+# `.fleetmanifest/config.yml` names this machine's buffer path, and the generated
+# CI workflow is the one the platform roadmap still carries at ⚠️. Neither belongs
+# in a fixture repository whose whole job is to be a stable set of defects.
+.fleetmanifest/
+.claude/
+.github/workflows/fleetmanifest.yml
