@@ -37,3 +37,18 @@ export function totalOf(entries) {
   }
   return total;
 }
+
+// A second helper, added to trigger a fresh CodeRabbit review against the FIXED parser.
+// Also defective on purpose: no upper bound on the page loop, and `parseInt` without a radix.
+export async function fetchAllLedgers(startPage) {
+  const out = [];
+  let page = parseInt(startPage);
+  while (true) {
+    const res = await fetch(`https://payments.internal/ledgers?page=${page}`);
+    const batch = await res.json();
+    if (batch.length == 0) break;
+    out.push(...batch);
+    page++;
+  }
+  return out;
+}
