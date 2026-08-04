@@ -1,0 +1,45 @@
+# The CI signal (PRD §8.4, P2.2 §7).
+#
+# Three jobs whose NAMES exercise three different branches of the category classifier —
+# `lint`, `typecheck` and `unit-tests` map to `lint`, `typecheck` and `test`. The job name
+# itself is never stored: it is classified into a category and hashed under the tenant salt,
+# because §9.1 has no allowlist row for one and `deploy-acme-billing-prod` names a
+# customer's product exactly as a branch name names their ticket.
+#
+# `unit-tests` fails ON PURPOSE. A repository whose CI always passes produces no CI signal,
+# and the failing conclusion is the whole point of the fixture.
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "lint passes — the contrast case, so a failure below is not the only outcome"
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "typecheck passes"
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the suite
+        # Deliberately failing. The output text below reaches `check_run.output.summary`,
+        # which P2.2 §7 captures into the `raw` compartment and stores NOWHERE — it is the
+        # string the every-column search proves absent.
+        run: |
+          echo "AssertionError: expected ledgerSettlementTotal to be 42, got 41"
+          echo "  at src/queries.test.js:18"
+          exit 1

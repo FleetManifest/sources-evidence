@@ -1,0 +1,73 @@
+# The SECOND distinct upstream tool, which is what P2.2 criterion 1 actually requires:
+# "ingests findings from >=2 distinct upstream tools". CodeQL is the first, enabled through
+# GitHub's default setup rather than here.
+#
+# Both jobs upload SARIF to code scanning, so both surface as `code_scanning_alert`
+# deliveries carrying their own `alert.tool.name` — and the adapter has no per-vendor code
+# at all, which is PRD §8.1's claim about this pattern.
+name: scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Weekly, so the repository keeps producing traffic without anyone pushing to it.
+  schedule:
+    - cron: '17 4 * * 1'
+
+# `security-events: write` is what `upload-sarif` needs. On a public repository this is
+# free; on a private one it requires GitHub Advanced Security, which is why the evidence
+# repository is public.
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan dependencies and filesystem
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy.sarif
+          # Deliberately NOT failing the build: a scanner that fails CI would conflate the
+          # SARIF signal with the CI signal, and this repository needs both separately.
+          exit-code: '0'
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+          # A distinct category per tool, so the two uploads do not overwrite one another's
+          # alerts — they are separate sources and must stay separately attributable.
+          category: trivy
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Gitleaks needs history to scan commits, not just the working tree.
+          fetch-depth: 0
+
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Report rather than fail, for the same reason Trivy does above.
+          args: detect --report-format sarif --report-path gitleaks.sarif --exit-code 0
+        continue-on-error: true
+
+      - name: Upload Gitleaks SARIF
+        if: always() && hashFiles('gitleaks.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
