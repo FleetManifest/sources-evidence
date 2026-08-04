@@ -48,6 +48,35 @@ jobs:
           # alerts — they are separate sources and must stay separately attributable.
           category: trivy
 
+  # Bandit — a THIRD distinct `tool.name`, and the one that scans the Python source rather
+  # than its dependencies. Added after the first live attempt produced no deliveries at all:
+  # Trivy's findings all come from `requirements.txt`, so re-running it against unchanged
+  # dependencies re-uploads identical alerts — and an alert that already exists does not
+  # re-fire `code_scanning_alert.created`. A tool that reads the code produces new alerts
+  # whenever the code changes, which is what a fixture repository actually needs.
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Scan Python for security defects
+        run: |
+          pip install --quiet bandit[sarif]
+          # `|| true` because bandit exits non-zero when it finds something, and finding
+          # something is the entire point of this repository.
+          bandit -r src -f sarif -o bandit.sarif || true
+
+      - name: Upload Bandit SARIF
+        if: always() && hashFiles('bandit.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit.sarif
+          category: bandit
+
   gitleaks:
     runs-on: ubuntu-latest
     steps:
