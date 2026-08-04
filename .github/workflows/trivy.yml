@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Scan dependencies and filesystem
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -53,16 +53,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Gitleaks needs history to scan commits, not just the working tree.
+          # Gitleaks scans commit history, not just the working tree.
           fetch-depth: 0
 
+      # The BINARY rather than `gitleaks/gitleaks-action@v2`, for two reasons found by the
+      # first run failing: that action declares no `inputs` at all, so the `args:` passed to it
+      # were silently ignored and it produced no SARIF — and it is commercially licensed, needing
+      # a GITLEAKS_LICENSE for organisation-owned repositories. The image has neither problem.
       - name: Scan for secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          # Report rather than fail, for the same reason Trivy does above.
-          args: detect --report-format sarif --report-path gitleaks.sarif --exit-code 0
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source=/repo --no-git \
+            --report-format=sarif --report-path=/repo/gitleaks.sarif \
+            --exit-code=0
         continue-on-error: true
 
       - name: Upload Gitleaks SARIF
